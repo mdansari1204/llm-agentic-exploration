@@ -1,40 +1,47 @@
-name: Simple Sync from Er_classcode
+name: Direct Sync from Er_classcode
 on:
-  workflow_dispatch:  # Manual trigger only for testing
+  workflow_dispatch:
   schedule:
     - cron: '0 2 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout destination repo
+        uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Setup Git
+      - name: Configure Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Sync files
+      - name: Sync from source
         run: |
-          # Clone source repo to temp directory
+          # Clone source repo
           git clone https://github.com/agenticgogol/Er_classcode.git temp_source
           
-          # Copy all files except .git
-          rsync -av --exclude='.git' temp_source/ ./
+          # Copy files (excluding .git directory)
+          find temp_source -name ".git" -prune -o -type f -print0 | xargs -0 -I {} cp --parents {} ./
+          
+          # Alternative approach using rsync if available
+          # rsync -av --exclude='.git' temp_source/ ./
           
           # Clean up
           rm -rf temp_source
           
-          # Check if there are changes
-          if [[ -n $(git status --porcelain) ]]; then
+          # Check for changes and commit
+          if ! git diff --quiet || ! git diff --cached --quiet; then
             git add .
-            git commit -m "Sync from Er_classcode $(date)"
+            git commit -m "Auto-sync from Er_classcode - $(date +'%Y-%m-%d %H:%M:%S')"
             git push
-            echo "Changes synced successfully"
+            echo "✅ Sync completed successfully"
           else
-            echo "No changes to sync"
+            echo "ℹ️ No changes to sync"
           fi

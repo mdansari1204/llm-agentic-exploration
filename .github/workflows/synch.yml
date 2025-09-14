@@ -1,55 +1,40 @@
-name: Sync from Er_classcode
+name: Simple Sync from Er_classcode
 on:
+  workflow_dispatch:  # Manual trigger only for testing
   schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
-  workflow_dispatch:  # Allows manual triggering from GitHub UI
-  push:
-    branches: [ main ]  # Also sync when main branch is updated
+    - cron: '0 2 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout destination repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0  # Fetch full history
-      
-      - name: Configure Git
+          fetch-depth: 0
+
+      - name: Setup Git
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-      
-      - name: Add source repo as remote
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync files
         run: |
-          git remote add source https://github.com/agenticgogol/Er_classcode.git || true
-          git fetch source
-      
-      - name: Sync changes
-        run: |
-          # Create or switch to sync branch
-          git checkout -B sync-from-source
+          # Clone source repo to temp directory
+          git clone https://github.com/agenticgogol/Er_classcode.git temp_source
           
-          # Merge source changes
-          git merge source/main --allow-unrelated-histories -X theirs
+          # Copy all files except .git
+          rsync -av --exclude='.git' temp_source/ ./
           
-          # Push sync branch
-          git push origin sync-from-source --force
-      
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: sync-from-source
-          base: main
-          title: 'Auto-sync from Er_classcode'
-          body: |
-            This PR automatically syncs changes from the source repository.
-            
-            **Source:** https://github.com/agenticgogol/Er_classcode.git
-            **Destination:** https://github.com/mdansari1204/llm-agentic-exploration.git
-            
-            Please review the changes before merging.
-          draft: false
-          delete-branch: true
+          # Clean up
+          rm -rf temp_source
+          
+          # Check if there are changes
+          if [[ -n $(git status --porcelain) ]]; then
+            git add .
+            git commit -m "Sync from Er_classcode $(date)"
+            git push
+            echo "Changes synced successfully"
+          else
+            echo "No changes to sync"
+          fi

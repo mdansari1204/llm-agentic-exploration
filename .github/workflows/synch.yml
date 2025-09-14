@@ -1,1 +1,23 @@
+name: Sync Fork
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+  workflow_dispatch:  # Manual trigger
 
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Sync upstream changes
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git remote add upstream https://github.com/agenticgogol/Er_classcode.git
+          git fetch upstream
+          git checkout main
+          git merge upstream/main
+          git push origin main
